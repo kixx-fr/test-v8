@@ -648,59 +648,45 @@ body.dark-mode .btn-secondary { border-color: #444; color: #fff; }
     text-shadow: 1px 1px 5px rgba(0, 0, 0, 0.5);
     font-size: 1.2rem;
 }
-/* --- CORRECTIF MODE PAYSAGE (SMARTPHONE & TABLETTE) --- */
-@media screen and (orientation: landscape) and (max-height: 600px) {
-    /* On réduit la taille des produits pour ne pas qu'ils prennent tout l'écran */
-    .product-grid {
-        grid-template-columns: repeat(4, 1fr) !important; /* 4 colonnes pour les petits écrans larges */
-        gap: 10px !important; /* On réduit l'espace entre les produits */
-    }
-
-    /* On ajuste la taille des titres et prix pour gagner de la place */
-    .product-title {
-        font-size: 0.85rem !important;
-    }
-    .product-price {
-        font-size: 0.95rem !important;
-    }
-
-    /* Ajustement de la bannière Hero en paysage pour éviter qu'elle soit trop haute */
-    #category-hero-section {
-        height: 180px !important;
-    }
+/* --- BOUTON CHATBOT : REMPLISSAGE TOTAL --- */
+#chatbot-launcher {
+    position: fixed !important;
+    bottom: 20px !important;
+    right: 20px !important;
+    width: 65px !important;   /* Taille du bouton */
+    height: 65px !important;
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    cursor: pointer !important;
+    z-index: 9999 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
 }
 
-/* Optionnel : Pour les tablettes un peu plus grandes en paysage */
-@media screen and (orientation: landscape) and (min-height: 601px) and (max-width: 1024px) {
-    .product-grid {
-        grid-template-columns: repeat(4, 1fr) !important;
-    }
-}
-/* --- AGRANDISSEMENT DU LOGO SUR MOBILE (PORTRAIT & PAYSAGE) --- */
-@media screen and (max-width: 767px) {
-    /* On donne plus de place au conteneur du logo */
-    .logo-wrapper {
-        min-width: 180px !important; /* Augmente la largeur minimale */
-        flex: 2; /* Force le logo à prendre plus d'espace par rapport aux autres boutons */
-    }
-
-    /* On augmente la hauteur autorisée de l'image */
-    .logo-wrapper img {
-        max-height: 80px !important; /* Passage de 55px à 80px */
-        width: auto;
-        transform: scale(1.1); /* Petit boost de taille supplémentaire */
-        transform-origin: left center;
-    }
-
-    /* On réduit un peu l'espace de la barre de recherche mobile si besoin */
-    .search-container {
-        margin: 0 10px !important;
-    }
+#chatbot-icon {
+    width: 100% !important;   /* Force à prendre toute la largeur */
+    height: 100% !important;  /* Force à prendre toute la hauteur */
+    object-fit: cover !important; /* REMPLIT tout l'espace (coupe légèrement si pas carré) */
+    border-radius: 50% !important; /* Force le logo à être parfaitement rond */
+    filter: none !important;
+    display: block !important;
 }
 
-/* Ajustement spécifique pour le mode PAYSAGE (Landscape) */
-@media screen and (max-width: 900px) and (orientation: landscape) {
-    .logo-wrapper img {
-        max-height: 65px !important; /* Un peu moins haut qu'en portrait pour ne pas manger l'écran */
-    }
+/* On ajuste la notif pour qu'elle soit bien sur le bord du logo */
+#chatbot-notif {
+    position: absolute !important;
+    top: -2px !important;
+    right: -2px !important;
+    background-color: #ff0000 !important;
+    color: #fff !important;
+    font-size: 11px !important;
+    width: 22px !important;
+    height: 22px !important;
+    border-radius: 50% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border: 2px solid #fff !important;
 }
