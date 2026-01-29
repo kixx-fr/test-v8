@@ -171,7 +171,7 @@ function getRecaptchaResponse() {
 }
 
 /* =================================================================
-   PARTIE 2 : INITIALISATION & CHARGEMENT DONNÉES
+    PARTIE 2 : INITIALISATION & CHARGEMENT DONNÉES
 ================================================================= */
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -200,6 +200,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                 fetchGlobalContent()
             ]);
             console.log("✅ 2. Config & Contenu chargés");
+
+            // --- CORRECTIF DEEP LINKING : OUVERTURE AUTOMATIQUE DU PRODUIT ---
+            const urlParams = new URLSearchParams(window.location.search);
+            const productId = urlParams.get('product');
+
+            if (productId && state.products && state.products.length > 0) {
+                const productToOpen = state.products.find(p => p.id === productId);
+                if (productToOpen) {
+                    console.log("🎯 Produit détecté via URL:", productId);
+                    // On appelle la fonction d'ouverture d'origine
+                    openProductModal(productToOpen);
+                }
+            }
 
         } catch (e) {
             console.error("Erreur de chargement séquentiel:", e);
@@ -233,60 +246,48 @@ document.addEventListener('DOMContentLoaded', async () => {
 async function fetchProducts() {
     const grid = document.getElementById('product-grid');
     try {
-        // On ajoute un paramètre de temps pour éviter la mise en cache
         const res = await fetch(`data.json?t=${new Date().getTime()}`); 
-        
-        // --- CORRECTIF : On vérifie si le serveur a bien trouvé le fichier ---
-        if (!res.ok) {
-            throw new Error(`Le fichier 'data.json' est introuvable (Erreur ${res.status}). Assurez-vous qu'il est bien placé dans le dossier 'mains v9 mauvais seo' à côté de votre fichier index.html.`);
-        }
+        if (!res.ok) throw new Error(`Fichier data.json introuvable.`);
 
         const data = await res.json();
-        if (!Array.isArray(data)) throw new Error("Format produits invalide : un tableau est attendu.");
+        if (!Array.isArray(data)) throw new Error("Format produits invalide.");
 
         const grouped = {};
 
         data.forEach(p => {
-            const key = p.MasterName; 
-            if (!key) return; // Sécurité si MasterName est manquant
+            // --- 1. NETTOYAGE RADICAL DU NOM POUR LA CARTE ---
+            // On prend uniquement ce qu'il y a avant le premier " - " 
+            // pour que "Genouillère... - Small" devienne juste "Genouillère..."
+            let groupKey = p.MasterName || "";
+            let displayNameOnCard = groupKey.split(' - ')[0].trim();
 
-            if (!grouped[key]) {
-                // --- CORRECTIF : NORMALISATION DES MARQUES (Jordan = Air Jordan) ---
-                const nameUpper = key.toUpperCase();
+            if (!displayNameOnCard) return;
+
+            if (!grouped[displayNameOnCard]) {
+                const nameUpper = displayNameOnCard.toUpperCase();
                 let detectedBrand = "";
+                if (nameUpper.includes("JORDAN")) detectedBrand = "JORDAN";
+                else if (nameUpper.includes("NIKE")) detectedBrand = "NIKE";
+                else if (nameUpper.includes("361")) detectedBrand = "361°";
+                else if (nameUpper.includes("PUMA")) detectedBrand = "PUMA";
+                else detectedBrand = (displayNameOnCard.split(' ')[0] || "").toUpperCase();
 
-                if (nameUpper.includes("JORDAN")) {
-                    detectedBrand = "JORDAN";
-                } else if (nameUpper.includes("NIKE")) {
-                    detectedBrand = "NIKE";
-                } else if (nameUpper.includes("361")) {
-                    detectedBrand = "361°";
-                } else {
-                    // Fallback sur le premier mot si aucune marque connue n'est détectée
-                    const firstWord = key.split(' ')[0] || "";
-                    detectedBrand = firstWord.toUpperCase();
-                }
-
-                grouped[key] = {
+                grouped[displayNameOnCard] = {
                     ...p,
                     id: p.ID,
-                    model: key,
+                    model: displayNameOnCard, // <--- NOM COURT (C'est ce qui s'affiche sur la carte)
                     brand: detectedBrand, 
                     category: p['p.category'] || "SNEAKERS", 
                     price: parseFloat(p.Price || 0),
                     stock: 0,
                     image: p['Lien URL'] || "", 
                     
-                    // Nettoyage des retours à la ligne pour l'affichage HTML
+                    // --- PROTECTION SURVOL ---
+                    // On garde la description complète pour la MODALE uniquement
                     description: p["SEO description (Online Store only)"] 
                         ? p["SEO description (Online Store only)"].replace(/\\n/g, '<br>').replace(/\n/g, '<br>') 
                         : "Aucune description disponible.",
                     
-                    seoTitle: p["SEO title (Online Store only)"] || key,
-                    seoDesc: p["SEO description (Online Store only)"] 
-                        ? p["SEO description (Online Store only)"].substring(0, 160) 
-                        : "",
-
                     sizesList: [],
                     stockDetails: {},
                     images: [
@@ -296,41 +297,40 @@ async function fetchProducts() {
                 };
             }
 
-            // Gestion des tailles et cumul du stock par modèle
-            const s = String(p.Size || "").trim();
+            // --- 2. VARIANTE PRÉCISE (UNIQUEMENT DANS LA MODALE) ---
+            // On affiche le Nom Complet + La Dimension [Taille] dans le menu déroulant
+            const sizeValue = p.Size ? ` [${p.Size}]` : "";
+            const fullInfoForModal = p.MasterName + sizeValue; 
+            
             const q = parseInt(p.Stock || 0);
             
-            if (s) {
-                if (!grouped[key].sizesList.includes(s)) {
-                    grouped[key].sizesList.push(s);
+            if (fullInfoForModal) {
+                if (!grouped[displayNameOnCard].sizesList.includes(fullInfoForModal)) {
+                    grouped[displayNameOnCard].sizesList.push(fullInfoForModal);
                 }
-                // Initialise à 0 si la taille n'existe pas encore pour ce modèle
-                grouped[key].stockDetails[s] = (grouped[key].stockDetails[s] || 0) + q;
-                grouped[key].stock += q;
+                grouped[displayNameOnCard].stockDetails[fullInfoForModal] = (grouped[displayNameOnCard].stockDetails[fullInfoForModal] || 0) + q;
+                grouped[displayNameOnCard].stock += q;
             }
         });
 
-        // Mise à jour de l'état global et tri alphabétique
         state.products = Object.values(grouped).sort((a, b) => a.model.localeCompare(b.model));
         
-        // --- EXÉCUTION DU RENDU ---
+        // --- OUVERTURE URL IMMÉDIATE ---
+        const urlParams = new URLSearchParams(window.location.search);
+        const productId = urlParams.get('product');
+        if (productId && state.products.length > 0) {
+            const productToOpen = state.products.find(p => p.id === productId);
+            if (productToOpen && typeof openProductModal === 'function') {
+                openProductModal(productToOpen);
+            }
+        }
+
         if (typeof generateFilters === 'function') generateFilters(); 
-        
-        // Pour éviter que ça rame, on demande à renderCatalog de gérer le flux
         if (typeof renderCatalog === 'function') renderCatalog(true); 
-        
         if (typeof initSearch === 'function') initSearch();
         
     } catch (e) {
         console.error("Erreur Catalogue:", e);
-        if (grid) {
-            grid.innerHTML = `
-                <div style="text-align:center;padding:50px;color:red;font-family:sans-serif;">
-                    <h3>Erreur de chargement</h3>
-                    <p>${e.message}</p>
-                    <small>Vérifiez que le fichier 'data.json' n'a pas été renommé ou déplacé.</small>
-                </div>`;
-        }
     }
 }
 
@@ -631,6 +631,7 @@ function createProductCard(product) {
 
     let sizesHtml = '';
     if (!isOutOfStock && product.sizesList.length > 0) {
+        // On garde le HTML des tailles car ton CSS se charge maintenant de le masquer proprement au survol
         sizesHtml = `<div class="hover-sizes">${product.sizesList.slice(0, 8).map(s => `<span class="size-tag-mini">${s}</span>`).join('')}</div>`;
     }
 
@@ -648,6 +649,7 @@ function createProductCard(product) {
             </div>
         </div>
     `;
+
     div.addEventListener('click', () => openProductModal(product));
     
     const addBtn = div.querySelector('.add-btn-mini');
@@ -658,10 +660,12 @@ function createProductCard(product) {
         });
     }
     
-    if (product.img2Url && !isOutOfStock) {
+    // --- CORRECTIF IMAGE DE SURVOL ---
+    // On vérifie si une deuxième image existe dans le tableau des images
+    if (product.images && product.images.length > 1 && !isOutOfStock) {
         const wrapper = div.querySelector('.product-image-wrapper');
         const hoverImg = document.createElement('img');
-        hoverImg.src = product.img2Url;
+        hoverImg.src = product.images[1]; // Utilise la 2ème image du tableau
         hoverImg.alt = `Survol ${product.model}`;
         hoverImg.className = 'hover-img'; 
         wrapper.appendChild(hoverImg);
@@ -721,7 +725,7 @@ function renderPaginationControls(totalPages) {
     }
 }
 
-/* --- MODALE PRODUIT & GDT (CORRECTION APPLIQUÉE) --- */
+/* --- MODALE PRODUIT & GDT (CORRECTION APPLIQUÉE AVEC DESIGN CHIPS) --- */
 function openProductModal(product) {
     const modal = document.getElementById('product-modal');
     if (!modal) return;
@@ -810,7 +814,6 @@ function openProductModal(product) {
     document.getElementById('modal-brand').innerText = product.brand;
     document.getElementById('modal-title').innerText = product.model;
     
-    // ✅ MODIFICATION : Utilisation de innerHTML pour afficher la description préparée
     const descBox = document.getElementById('modal-desc');
     if (descBox) {
         descBox.innerHTML = product.description || "Aucune description disponible.";
@@ -826,33 +829,45 @@ function openProductModal(product) {
         }
     }
 
-    // Tailles & Stock
+    // Tailles & Stock avec nouveau design Chips
     const sizeBox = document.getElementById('modal-sizes');
     const stockWarn = document.getElementById('stock-warning');
     const qtyIn = document.getElementById('modal-qty');
-    sizeBox.innerHTML = ''; stockWarn.classList.add('hidden');
+    
+    // On vide et on applique la classe container pour le nouveau design
+    sizeBox.innerHTML = ''; 
+    sizeBox.className = 'size-selector-container';
+    
+    stockWarn.classList.add('hidden');
     qtyIn.value = 1; qtyIn.disabled = true;
     let selSize = null, maxStock = 0;
 
     const availableSizes = product.sizesList || [];
     if (availableSizes.length > 0) {
         availableSizes.forEach(s => {
-            const btn = document.createElement('button');
-            btn.className = 'size-btn'; btn.innerText = s;
+            const chip = document.createElement('div');
+            chip.className = 'size-chip'; 
+            chip.innerText = s;
+            
             const realSizeStock = (product.stockDetails && product.stockDetails[s] !== undefined) ? parseInt(product.stockDetails[s]) : 0;
+            
             if (realSizeStock <= 0) {
-                btn.classList.add('disabled'); btn.style.opacity = "0.4"; btn.style.pointerEvents = "none";
+                chip.classList.add('out-of-stock');
             } else {
-                btn.onclick = () => {
-                    sizeBox.querySelectorAll('.size-btn').forEach(b => b.classList.remove('selected'));
-                    btn.classList.add('selected');
-                    selSize = s; maxStock = realSizeStock;
-                    qtyIn.disabled = false; qtyIn.max = maxStock; qtyIn.value = 1;
+                chip.onclick = () => {
+                    sizeBox.querySelectorAll('.size-chip').forEach(c => c.classList.remove('active'));
+                    chip.classList.add('active');
+                    selSize = s; 
+                    maxStock = realSizeStock;
+                    qtyIn.disabled = false; 
+                    qtyIn.max = maxStock; 
+                    qtyIn.value = 1;
                     stockWarn.innerText = `En stock`;
-                    stockWarn.style.color = "#28a745"; stockWarn.classList.remove('hidden');
+                    stockWarn.style.color = "#28a745"; 
+                    stockWarn.classList.remove('hidden');
                 };
             }
-            sizeBox.appendChild(btn);
+            sizeBox.appendChild(chip);
         });
     } else {
         sizeBox.innerHTML = '<div style="color:red; font-weight:bold;">Rupture de stock totale</div>';
@@ -878,6 +893,7 @@ function openProductModal(product) {
     
     renderRelatedProducts(product.related_products ? product.related_products.split(',') : []);
     openPanel(modal);
+    
     if(isMobileOrTablet()) {
         const modalContent = modal.querySelector('.modal-content');
         if(modalContent) modalContent.scrollTop = 0;
@@ -2117,120 +2133,4 @@ function activateScript(category) {
         oldScript.parentNode.replaceChild(newScript, oldScript);
         console.log(`🍪 Script RGPD activé : ${category}`);
     });
-}
-/* =================================================================
-   🤖 MODULE CHATBOT KICKS - VERSION OMNISCIENTE FINALE (MODIFIÉE)
-   ================================================================= */
-
-// 1. FONCTIONS GLOBALES (Accessibles par l'index.html)
-window.toggleKicksChat = function() {
-    const chatWin = document.getElementById('kicks-chat-window');
-    if (chatWin) chatWin.classList.toggle('chat-hidden');
-    const notif = document.getElementById('chatbot-notif');
-    if (notif) notif.style.display = 'none';
-};
-
-window.handleChatKey = function(e) { 
-    if (e.key === 'Enter') sendChatMessage(); 
-};
-
-// 2. MOTEUR DE RÉPONSES DU BOT
-function sendChatMessage() {
-    const input = document.getElementById('chat-input');
-    const qRaw = input.value.trim();
-    const q = qRaw.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    if (!q) return;
-
-    appendMessage('user', qRaw);
-    input.value = '';
-
-    setTimeout(() => {
-        let r = "";
-
-        // --- A. RECHERCHE PRODUITS, PRIX & TAILLES ---
-        const keywords = q.replace(/(combien|coute|prix|tarif|le|la|les|achat)/g, "").split(' ').filter(w => w.length > 1);
-        const found = state.products ? state.products.filter(p => {
-            const name = `${p.Brand || ''} ${p.Model || ''}`.toLowerCase();
-            return keywords.every(kw => name.includes(kw));
-        }) : [];
-
-        if (found.length > 0 && keywords.length > 0) {
-            r = "<strong>🔍 Stock trouvé :</strong><br>" + found.slice(0, 3).map(p => {
-                const sizes = Object.entries(p).filter(([k, v]) => !isNaN(k.replace(',', '.')) && Number(v) > 0).map(([s]) => s).join(', ');
-                const prix = p.Price || p.Prix || "Vérifier fiche";
-                return `• <strong>${p.Brand} ${p.Model}</strong><br>💰 Prix : <strong>${prix}€</strong><br>📏 Tailles : ${sizes || 'Voir fiche'}`;
-            }).join('<br><br>');
-        }
-
-        // --- B. LIVRAISON PRÉCISE (DÉTECTION ZONES SENSITIVES) ---
-        else if (q.match(/(livraison|frais|port|express|24h|tarif|guyane|martinique|abymes|gosier|mahault|pitre|moule|eau|anne|france)/)) {
-            const isFrance = q.match(/(france|metropole|hexagone)/);
-            const isGuyaneMartinique = q.match(/(guyane|martinique)/);
-            const isSensitive = q.match(/(abymes|gosier|mahault|pitre|moule|eau|anne|express|24h)/);
-
-            if (isFrance) {
-                r = "<strong>📍 Zone France Hexagonale :</strong><br>• Frais : 30€.<br>• OFFERT dès 400€.";
-            } else if (isGuyaneMartinique) {
-                r = "<strong>📍 Zone Guyane / Martinique :</strong><br>• Colissimo : 16.60€.<br>• OFFERT dès 150€.<br>⚠️ <em>L'Express 24h n'est pas disponible pour cette zone.</em>";
-            } else if (isSensitive) {
-                r = "<strong>🚀 Zone Guadeloupe (Sensitive) :</strong><br>• Colissimo : 16.60€ (OFFERT dès 150€).<br>• <strong>Express 24h : 20€</strong> (Option rapide).";
-            } else {
-                r = "<strong>📦 Livraison Antilles / Guyane :</strong><br>• Standard : 16.60€ (OFFERT dès 150€).<br>• Express 24h (20€) disponible sur zones sensitives Guadeloupe.";
-            }
-        }
-
-        // --- C. CGV, POIDS, SUIVI & RESPONSABILITÉ (URL MODIFIÉE) ---
-        else if (q.match(/(cgv|condition|loi|retour|retractation|14|jours|poids|kg|perte|vol|adresse|suivre|suivi)/)) {
-            r = "<strong>⚖️ CGV & INFOS PRATIQUES :</strong><br>" +
-                "• <strong>Lien direct :</strong> <a href='https://cgv.kixx.fr' target='_blank' style='color:#f39c12; font-weight:bold;'>Consulter nos CGV</a><br>" +
-                "• <strong>Suivi :</strong> <a href='https://www.laposte.fr/outils/suivre-vos-envois' target='_blank'>Suivre mon colis La Poste</a><br>" +
-                "• <strong>Poids :</strong> Limite de 10kg (~5 paires).<br>" +
-                "• <strong>Responsabilité :</strong> KICKS n'est pas responsable des vols/pertes ou erreurs d'adresse.<br>" +
-                "• <strong>Retours :</strong> 14 jours (kixx.retour@gmail.com).";
-        }
-
-        // --- D. PAIEMENT & SÉCURITÉ ---
-        else if (q.match(/(paiement|4x|paypal|stripe|klarna|securise|3d|ssl)/)) {
-            r = "<strong>💳 Paiement & Sécurité :</strong><br>• SSL & 3D Secure certifié.<br>• <strong>PayPal (4X sans frais)</strong>, Klarna, CB.";
-        }
-
-        // --- E. MENTIONS LÉGALES & SIÈGE (URL MODIFIÉE) ---
-        else if (q.match(/(mention|siege|societe|siret|adresse|rl|legal)/)) {
-            r = "<strong>📜 Mentions Légales :</strong><br>" +
-                "• <strong>Lien direct :</strong> <a href='https://ml.kixx.fr' target='_blank' style='color:#f39c12; font-weight:bold;'>Consulter les Mentions Légales</a><br>" +
-                "• E.I RL KICKS (SIRET: 990 351 702 00016).<br>• Siège : Rés Les Esses 3, Bat 28, 97139 Les Abymes.";
-        }
-
-        // --- PAR DÉFAUT ---
-        else {
-            r = "Je connais le prix des <strong>produits</strong>, les tarifs <strong>Guyane/DOM</strong>, les <strong><a href='https://cgv.kixx.fr' target='_blank'>CGV</a></strong> et le <strong>suivi de colis</strong>. Que puis-je faire pour toi ?";
-        }
-
-        appendMessage('bot', r);
-    }, 400);
-}
-
-function appendMessage(sender, text) {
-    const container = document.getElementById('chat-messages');
-    if (!container) return;
-    
-    const msgDiv = document.createElement('div');
-    msgDiv.className = `message ${sender}`;
-    
-    // --- AJOUT DE LA TÊTE DE ROBOT (PNG DANS ASSETS) ---
-    if (sender === 'bot') {
-        const avatar = document.createElement('img');
-        avatar.src = 'assets/robot.png';
-        avatar.className = 'bot-avatar';
-        // Petit robot emoji si l'image robot.png n'est pas trouvée
-        avatar.onerror = function() { this.replaceWith("🤖 "); };
-        msgDiv.prepend(avatar);
-    }
-    
-    const textSpan = document.createElement('span');
-    textSpan.innerHTML = text;
-    msgDiv.appendChild(textSpan);
-    
-    container.appendChild(msgDiv);
-    container.scrollTop = container.scrollHeight;
 }
