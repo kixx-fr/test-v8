@@ -181,10 +181,26 @@ body.dark-mode .logo-dark { display: block; }
     align-content: center; flex-wrap: wrap; gap: 6px; padding: 15px;
     opacity: 0; transition: opacity 0.3s ease; z-index: 5; pointer-events: none;
 }
-.product-card:hover .hover-sizes { opacity: 1; }
-.size-tag-mini {
-    background: #ffffff; color: #000000; font-size: 0.75rem; font-weight: 700;
-    padding: 4px 8px; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+/* --- LE SEUL BLOC DE SURVOL DONT TU AS BESOIN --- */
+
+/* 1. On affiche la 2ème image au survol */
+.product-card:hover .hover-img {
+    opacity: 1 !important;
+    z-index: 3;
+}
+
+/* 2. On cache TOUT le texte et le fond noir qui polluent */
+.product-card:hover .hover-sizes, 
+.product-card:hover .size-tag-mini, 
+.product-card:hover .product-description {
+    display: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+}
+
+/* 3. On s'assure que la main-img disparaît pour laisser place à la 2ème */
+.product-card:hover .main-img {
+    opacity: 0;
 }
 .product-info { padding: 15px; }
 .product-brand { font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 700; }
@@ -648,45 +664,75 @@ body.dark-mode .btn-secondary { border-color: #444; color: #fff; }
     text-shadow: 1px 1px 5px rgba(0, 0, 0, 0.5);
     font-size: 1.2rem;
 }
-/* --- BOUTON CHATBOT : REMPLISSAGE TOTAL --- */
-#chatbot-launcher {
-    position: fixed !important;
-    bottom: 20px !important;
-    right: 20px !important;
-    width: 65px !important;   /* Taille du bouton */
-    height: 65px !important;
-    background: transparent !important;
-    border: none !important;
-    padding: 0 !important;
-    cursor: pointer !important;
-    z-index: 9999 !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
+/* --- DESIGN DES BOUTONS DE TAILLES DANS LA MODALE --- */
+.size-selector-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 15px 0;
 }
 
-#chatbot-icon {
-    width: 100% !important;   /* Force à prendre toute la largeur */
-    height: 100% !important;  /* Force à prendre toute la hauteur */
-    object-fit: cover !important; /* REMPLIT tout l'espace (coupe légèrement si pas carré) */
-    border-radius: 50% !important; /* Force le logo à être parfaitement rond */
-    filter: none !important;
+.size-chip {
+    padding: 10px 15px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: #fff;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    text-align: center;
+    min-width: 60px;
+}
+
+.size-chip:hover {
+    border-color: #000;
+    background: #f8f8f8;
+}
+
+.size-chip.active {
+    background: #000;
+    color: #fff;
+    border-color: #000;
+}
+
+.size-chip.out-of-stock {
+    opacity: 0.4;
+    text-decoration: line-through;
+    cursor: not-allowed;
+    background: #eee;
+}
+//* --- FIX FINAL TOUS ÉCRANS (ULTRA-WIDE & MOBILE) --- */
+
+/* 1. On empêche la modale de sortir de l'écran */
+#product-modal, #gdt-panel, .modal-panel {
+    display: flex !important;
+    align-items: center !important; /* Centre verticalement */
+    justify-content: center !important;
+    overflow: hidden !important; /* Le scroll se fera à l'intérieur */
+}
+
+/* 2. C'est ici que le scroll doit vivre */
+.modal-content, .gdt-modal-content, #gdt-container {
+    width: 95% !important;
+    max-width: 1200px !important; /* S'adapte aux écrans larges */
+    max-height: 90vh !important; /* Ne dépasse jamais 90% de la hauteur de l'écran */
+    overflow-y: auto !important; /* FORCE LE SCROLL ICI */
+    background: #fff;
+    position: relative;
+    display: block !important;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* 3. Force l'affichage de la barre de scroll sur PC (Edge/Chrome/Safari) */
+.modal-content::-webkit-scrollbar, 
+.gdt-modal-content::-webkit-scrollbar {
+    width: 8px !important;
     display: block !important;
 }
 
-/* On ajuste la notif pour qu'elle soit bien sur le bord du logo */
-#chatbot-notif {
-    position: absolute !important;
-    top: -2px !important;
-    right: -2px !important;
-    background-color: #ff0000 !important;
-    color: #fff !important;
-    font-size: 11px !important;
-    width: 22px !important;
-    height: 22px !important;
-    border-radius: 50% !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    border: 2px solid #fff !important;
+.modal-content::-webkit-scrollbar-thumb, 
+.gdt-modal-content::-webkit-scrollbar-thumb {
+    background: #ccc !important;
+    border-radius: 10px !important;
 }
